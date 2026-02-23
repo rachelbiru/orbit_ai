@@ -1,11 +1,18 @@
+import { useState, useMemo } from "react";
 import { useEvents } from "@/hooks/use-events";
 import { useScores } from "@/hooks/use-scores";
 import { useTeams } from "@/hooks/use-teams";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Medal, Star, Lock } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Trophy, Medal, Star, Lock, Search, ArrowUpDown } from "lucide-react";
 import { Redirect } from "wouter";
+
+type SortColumn = "name" | "school" | "city" | "country" | "language" | "score";
+type SortOrder = "asc" | "desc";
 
 export default function Leaderboard() {
   const { user } = useAuth();
@@ -99,48 +106,145 @@ function LeaderboardContent({ eventId }: { eventId: number }) {
 }
 
 function RankingList({ teams }: { teams: any[] }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("score");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortOrder(column === "score" ? "desc" : "asc");
+    }
+  };
+
+  const SortHeader = ({ column, label }: { column: SortColumn; label: string }) => (
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortColumn === column && (
+          <ArrowUpDown className={`h-4 w-4 transition-transform ${sortOrder === "desc" ? "rotate-180" : ""}`} />
+        )}
+      </div>
+    </TableHead>
+  );
+
+  const filteredAndSortedTeams = useMemo(() => {
+    let filtered = teams.filter(
+      (team) =>
+        team.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        team.schoolName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (team.city || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (team.country || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        team.language.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    filtered.sort((a, b) => {
+      let aVal: any = a[sortColumn];
+      let bVal: any = b[sortColumn];
+
+      if (sortColumn === "score") {
+        aVal = a.totalPoints;
+        bVal = b.totalPoints;
+      }
+
+      if (typeof aVal === "string") aVal = aVal.toLowerCase();
+      if (typeof bVal === "string") bVal = bVal.toLowerCase();
+
+      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [teams, searchTerm, sortColumn, sortOrder]);
+
   return (
-    <div className="space-y-4">
-      {teams.map((team, index) => (
-        <Card 
-          key={team.id}
-          className={`
-            border-0 relative overflow-hidden transition-transform hover:scale-[1.01]
-            ${index === 0 ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 ring-1 ring-yellow-500/50' : 'bg-card/50'}
-          `}
-        >
-          {index === 0 && <div className="absolute top-0 right-0 p-4"><Trophy className="text-yellow-500 h-8 w-8" /></div>}
-          
-          <CardContent className="p-6 flex items-center gap-6">
-            <div className={`
-              w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl
-              ${index === 0 ? 'bg-yellow-500 text-black' : 
-                index === 1 ? 'bg-slate-300 text-black' :
-                index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-muted-foreground'}
-            `}>
-              {index + 1}
-            </div>
-            
-            <div className="flex-1">
-              <h3 className="text-xl font-bold text-white">{team.name}</h3>
-              <p className="text-muted-foreground">{team.schoolName}</p>
-            </div>
-            
-            <div className="text-right">
-              <div className="text-3xl font-bold font-mono tracking-tighter text-white">
-                {team.totalPoints}
-              </div>
-              <div className="text-xs text-muted-foreground uppercase tracking-widest">Points</div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-      
-      {teams.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          No teams registered in this category yet.
+    <Card className="border-primary/10 bg-gradient-to-br from-card/50 to-card/30">
+      <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-yellow-500" />
+            Teams ({filteredAndSortedTeams.length})
+          </CardTitle>
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, school, city, country..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </div>
-      )}
-    </div>
+      </CardHeader>
+      <CardContent>
+        {teams.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No teams registered in this category yet.</p>
+          </div>
+        ) : filteredAndSortedTeams.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No teams match your search.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-12 text-center">Rank</TableHead>
+                  <SortHeader column="name" label="Team Name" />
+                  <SortHeader column="school" label="School" />
+                  <SortHeader column="city" label="City" />
+                  <SortHeader column="country" label="Country" />
+                  <SortHeader column="language" label="Language" />
+                  <SortHeader column="score" label="Score" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAndSortedTeams.map((team, idx) => {
+                  const rank = teams.indexOf(team) + 1;
+                  return (
+                    <TableRow
+                      key={team.id}
+                      className="animate-in fade-in duration-300"
+                      style={{ animationDelay: `${idx * 50}ms` }}
+                    >
+                      <TableCell className="text-center font-bold">
+                        <div className={`
+                          inline-flex w-8 h-8 rounded-full items-center justify-center font-bold text-sm
+                          ${rank === 1 ? 'bg-yellow-500 text-black' : 
+                            rank === 2 ? 'bg-slate-300 text-black' :
+                            rank === 3 ? 'bg-amber-700 text-white' : 'bg-muted text-muted-foreground'}
+                        `}>
+                          {rank}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{team.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{team.schoolName || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{team.city || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{team.country || "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-xs">{team.language}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="font-bold text-lg text-primary">{team.totalPoints}</div>
+                        <div className="text-xs text-muted-foreground">points</div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

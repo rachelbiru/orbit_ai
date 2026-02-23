@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Plus, Edit2, Trash2, Users, AlertTriangle, Phone, Languages, Upload } from "lucide-react";
+import { Plus, Edit2, Trash2, Users, AlertTriangle, Phone, Languages, Upload, Search, ArrowUpDown, Calendar } from "lucide-react";
 import type { User } from "@shared/schema";
+
+type SortColumn = "name" | "username" | "events" | "phone";
+type SortOrder = "asc" | "desc";
 
 export default function ManagerJudges() {
   const { toast } = useToast();
@@ -20,6 +23,9 @@ export default function ManagerJudges() {
   const [editingJudge, setEditingJudge] = useState<User | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importText, setImportText] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("name");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
 
   const [formData, setFormData] = useState({
     username: "",
@@ -30,16 +36,75 @@ export default function ManagerJudges() {
     restrictions: "",
   });
 
-  const { data: judges = [], isLoading } = useQuery<User[]>({
-    queryKey: ["/api/judges"],
+  const { data: judges = [], isLoading } = useQuery<(any)[]>({
+    queryKey: ["/api/judges-with-events"],
+    queryFn: async () => {
+      const res = await fetch("/api/judges-with-events");
+      if (!res.ok) throw new Error("Failed to fetch judges");
+      return res.json();
+    },
   });
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortOrder("asc");
+    }
+  };
+
+  const SortHeader = ({ column, label }: { column: SortColumn; label: string }) => (
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortColumn === column && (
+          <ArrowUpDown className={`h-4 w-4 transition-transform ${sortOrder === "desc" ? "rotate-180" : ""}`} />
+        )}
+      </div>
+    </TableHead>
+  );
+
+  const filteredAndSortedJudges = useMemo(() => {
+    let filtered = judges.filter(
+      (judge) =>
+        judge.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        judge.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        judge.phone?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    filtered.sort((a, b) => {
+      let aVal: any = a[sortColumn];
+      let bVal: any = b[sortColumn];
+
+      if (sortColumn === "phone") {
+        aVal = a.phone || "";
+        bVal = b.phone || "";
+      } else if (sortColumn === "events") {
+        aVal = a.assignedEvents?.length || 0;
+        bVal = b.assignedEvents?.length || 0;
+      }
+
+      if (typeof aVal === "string") aVal = aVal.toLowerCase();
+      if (typeof bVal === "string") bVal = bVal.toLowerCase();
+
+      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [judges, searchTerm, sortColumn, sortOrder]);
 
   const createJudgeMutation = useMutation({
     mutationFn: async (data: any) => {
       return apiRequest("POST", "/api/judges", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/judges"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/judges-with-events"] });
       toast({ title: "Judge Created", description: "New judge has been added successfully." });
       resetForm();
       setDialogOpen(false);
@@ -54,7 +119,7 @@ export default function ManagerJudges() {
       return apiRequest("PUT", `/api/judges/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/judges"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/judges-with-events"] });
       toast({ title: "Judge Updated", description: "Judge details have been updated." });
       resetForm();
       setDialogOpen(false);
@@ -70,7 +135,7 @@ export default function ManagerJudges() {
       return apiRequest("DELETE", `/api/judges/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/judges"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/judges-with-events"] });
       toast({ title: "Judge Removed", description: "Judge has been removed from the system." });
     },
     onError: (error: any) => {
@@ -92,7 +157,7 @@ export default function ManagerJudges() {
       return results;
     },
     onSuccess: (results) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/judges"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/judges-with-events"] });
       const successCount = results.filter(r => r.success).length;
       toast({ 
         title: "Import Complete", 
@@ -325,12 +390,23 @@ export default function ManagerJudges() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            All Judges ({judges.length})
-          </CardTitle>
+      <Card className="border-primary/10 bg-gradient-to-br from-card/50 to-card/30">
+        <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              All Judges ({filteredAndSortedJudges.length})
+            </CardTitle>
+            <div className="relative w-full md:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, username, or phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {judges.length === 0 ? (
@@ -338,82 +414,110 @@ export default function ManagerJudges() {
               <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No judges added yet. Click "Add Judge" to get started.</p>
             </div>
+          ) : filteredAndSortedJudges.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No judges match your search.</p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Languages</TableHead>
-                  <TableHead>Restrictions</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {judges.map((judge) => (
-                  <TableRow key={judge.id} data-testid={`row-judge-${judge.id}`}>
-                    <TableCell className="font-medium">{judge.name}</TableCell>
-                    <TableCell>{judge.username}</TableCell>
-                    <TableCell>
-                      {judge.phone ? (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          {judge.phone}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {judge.languages?.map((lang) => (
-                          <Badge key={lang} variant="secondary" className="text-xs">
-                            {lang}
-                          </Badge>
-                        )) || <span className="text-muted-foreground">-</span>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-xs">
-                      {(judge as any).restrictions ? (
-                        <div className="flex items-start gap-1">
-                          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                          <span className="text-sm text-amber-600 dark:text-amber-400 line-clamp-2">
-                            {(judge as any).restrictions}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">None</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => openEditDialog(judge)}
-                          data-testid={`button-edit-judge-${judge.id}`}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => {
-                            if (confirm("Are you sure you want to remove this judge?")) {
-                              deleteJudgeMutation.mutate(judge.id);
-                            }
-                          }}
-                          data-testid={`button-delete-judge-${judge.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <SortHeader column="name" label="Name" />
+                    <SortHeader column="username" label="Username" />
+                    <SortHeader column="events" label="Events" />
+                    <SortHeader column="phone" label="Phone" />
+                    <TableHead>Languages</TableHead>
+                    <TableHead>Restrictions</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredAndSortedJudges.map((judge, idx) => (
+                    <TableRow 
+                      key={judge.id} 
+                      data-testid={`row-judge-${judge.id}`}
+                      className="animate-in fade-in duration-300"
+                      style={{ animationDelay: `${idx * 50}ms` }}
+                    >
+                      <TableCell className="font-medium">{judge.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{judge.username}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {judge.assignedEvents && judge.assignedEvents.length > 0 ? (
+                            judge.assignedEvents.map((event: any) => (
+                              <Badge key={event.id} variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                                {event.name}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {judge.phone ? (
+                          <span className="flex items-center gap-2 text-sm">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                            {judge.phone}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {judge.languages?.map((lang: string) => (
+                            <Badge key={lang} variant="secondary" className="text-xs">
+                              {lang}
+                            </Badge>
+                          )) || <span className="text-muted-foreground">—</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        {(judge as any).restrictions ? (
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                            <span className="text-sm text-amber-600 dark:text-amber-400 line-clamp-2">
+                              {(judge as any).restrictions}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openEditDialog(judge)}
+                            data-testid={`button-edit-judge-${judge.id}`}
+                            className="hover:bg-primary/10 hover:text-primary transition-colors"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              if (confirm("Are you sure you want to remove this judge?")) {
+                                deleteJudgeMutation.mutate(judge.id);
+                              }
+                            }}
+                            data-testid={`button-delete-judge-${judge.id}`}
+                            className="hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -8,13 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { MessageSquare, Send, User as UserIcon, Clock, CheckCircle, Mail, Search } from "lucide-react";
+import { MessageSquare, Send, User as UserIcon, Clock, CheckCircle, Mail, Search, ArrowUpDown } from "lucide-react";
 import type { User, Notification, Event } from "@shared/schema";
 import { api } from "@shared/routes";
 import { format } from "date-fns";
+
+type SortColumn = "judge" | "message" | "date" | "status";
+type SortOrder = "asc" | "desc";
 
 export default function ManagerMessages() {
   const { toast } = useToast();
@@ -23,6 +26,9 @@ export default function ManagerMessages() {
   const [selectedJudgeId, setSelectedJudgeId] = useState<string>("");
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"grouped" | "flat">("grouped");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("date");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const { data: events = [], isLoading: eventsLoading, isError: eventsError } = useQuery<Event[]>({
     queryKey: ["/api/events"],
@@ -87,6 +93,65 @@ export default function ManagerMessages() {
   };
 
   const getJudgeById = (id: number) => allJudges.find((j) => j.id === id);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortOrder("desc");
+    }
+  };
+
+  const SortHeader = ({ column, label }: { column: SortColumn; label: string }) => (
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortColumn === column && (
+          <ArrowUpDown className={`h-4 w-4 transition-transform ${sortOrder === "desc" ? "rotate-180" : ""}`} />
+        )}
+      </div>
+    </TableHead>
+  );
+
+  const flatMessages = useMemo(() => {
+    return filteredNotifications.map(n => ({
+      ...n,
+      judge: getJudgeById(n.judgeId),
+    }));
+  }, [filteredNotifications]);
+
+  const sortedFlatMessages = useMemo(() => {
+    let sorted = [...flatMessages];
+    
+    sorted.sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      if (sortColumn === "judge") {
+        aVal = a.judge?.name.toLowerCase() || "";
+        bVal = b.judge?.name.toLowerCase() || "";
+      } else if (sortColumn === "message") {
+        aVal = a.message.toLowerCase();
+        bVal = b.message.toLowerCase();
+      } else if (sortColumn === "date") {
+        aVal = new Date(a.createdAt || 0).getTime();
+        bVal = new Date(b.createdAt || 0).getTime();
+      } else if (sortColumn === "status") {
+        aVal = a.isRead ? 1 : 0;
+        bVal = b.isRead ? 1 : 0;
+      }
+
+      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [flatMessages, sortColumn, sortOrder]);
 
   const filteredNotifications = useMemo(() => {
     if (!searchQuery.trim()) return myNotifications;
@@ -200,6 +265,24 @@ export default function ManagerMessages() {
             data-testid="input-search-messages"
           />
         </div>
+        <div className="flex gap-2">
+          <Button 
+            variant={viewMode === "grouped" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("grouped")}
+            data-testid="button-view-grouped"
+          >
+            Grouped
+          </Button>
+          <Button 
+            variant={viewMode === "flat" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("flat")}
+            data-testid="button-view-flat"
+          >
+            Flat List
+          </Button>
+        </div>
         <Badge variant="secondary">{myNotifications.length} total messages</Badge>
       </div>
 
@@ -236,7 +319,7 @@ export default function ManagerMessages() {
             {searchQuery ? "No messages match your search." : "Send your first message to get started."}
           </p>
         </Card>
-      ) : (
+      ) : viewMode === "grouped" ? (
         <div className="space-y-4">
           {sortedJudgeIds.map((judgeId) => {
             const judge = getJudgeById(judgeId);
@@ -244,8 +327,8 @@ export default function ManagerMessages() {
             const unreadCount = messages.filter((m) => !m.isRead).length;
 
             return (
-              <Card key={judgeId} data-testid={`card-judge-messages-${judgeId}`}>
-                <CardHeader className="pb-2">
+              <Card key={judgeId} data-testid={`card-judge-messages-${judgeId}`} className="border-primary/10 bg-gradient-to-br from-card/50 to-card/30">
+                <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0 pb-2">
                   <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -264,40 +347,109 @@ export default function ManagerMessages() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-48">
-                    <div className="space-y-3">
-                      {messages.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`p-3 rounded-lg ${
-                            notification.isRead ? "bg-muted/50" : "bg-primary/5 border border-primary/20"
-                          }`}
-                          data-testid={`message-${notification.id}`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm flex-1">{notification.message}</p>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-                              {notification.isRead ? (
-                                <CheckCircle className="h-3 w-3 text-green-500" />
-                              ) : (
-                                <Clock className="h-3 w-3 text-amber-500" />
-                              )}
-                            </div>
+                  <div className="space-y-3">
+                    {messages.map((notification, idx) => (
+                      <div
+                        key={notification.id}
+                        className={`p-3 rounded-lg animate-in fade-in duration-300 ${
+                          notification.isRead ? "bg-muted/50" : "bg-primary/5 border border-primary/20"
+                        }`}
+                        data-testid={`message-${notification.id}`}
+                        style={{ animationDelay: `${idx * 50}ms` }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm flex-1">{notification.message}</p>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                            {notification.isRead ? (
+                              <CheckCircle className="h-3 w-3 text-green-500" />
+                            ) : (
+                              <Clock className="h-3 w-3 text-amber-500" />
+                            )}
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {notification.createdAt
-                              ? format(new Date(notification.createdAt), "MMM d, yyyy 'at' h:mm a")
-                              : "Unknown date"}
-                          </p>
                         </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {notification.createdAt
+                            ? format(new Date(notification.createdAt), "MMM d, yyyy 'at' h:mm a")
+                            : "Unknown date"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             );
           })}
         </div>
+      ) : (
+        <Card className="border-primary/10 bg-gradient-to-br from-card/50 to-card/30">
+          <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              All Messages ({sortedFlatMessages.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {sortedFlatMessages.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No messages match your search</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <SortHeader column="judge" label="Judge" />
+                      <SortHeader column="message" label="Message" />
+                      <SortHeader column="date" label="Date" />
+                      <SortHeader column="status" label="Status" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedFlatMessages.map((notification, idx) => (
+                      <TableRow
+                        key={notification.id}
+                        data-testid={`message-${notification.id}`}
+                        className="animate-in fade-in duration-300"
+                        style={{ animationDelay: `${idx * 50}ms` }}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                              <UserIcon className="h-3 w-3 text-primary" />
+                            </div>
+                            {notification.judge?.name || "Unknown"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm max-w-md line-clamp-2">{notification.message}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {notification.createdAt
+                            ? format(new Date(notification.createdAt), "MMM d, yyyy h:mm a")
+                            : "Unknown"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={notification.isRead ? "secondary" : "default"}
+                            className={notification.isRead ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700" : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700"}
+                          >
+                            <div className="flex items-center gap-1">
+                              {notification.isRead ? (
+                                <CheckCircle className="h-3 w-3" />
+                              ) : (
+                                <Clock className="h-3 w-3" />
+                              )}
+                              {notification.isRead ? "Read" : "Unread"}
+                            </div>
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

@@ -575,6 +575,7 @@ function TeamsTab({ eventId, teams }: { eventId: number; teams: Team[] }) {
   const [name, setName] = useState("");
   const [schoolName, setSchoolName] = useState("");
   const [city, setCity] = useState("");
+  const [country, setCountry] = useState("");
   const [category, setCategory] = useState("ElementarySchool");
   const [language, setLanguage] = useState("English");
   const [csvText, setCsvText] = useState("");
@@ -642,6 +643,7 @@ function TeamsTab({ eventId, teams }: { eventId: number; teams: Team[] }) {
     setName("");
     setSchoolName("");
     setCity("");
+    setCountry("");
     setCategory("ElementarySchool");
     setLanguage("English");
   };
@@ -651,13 +653,14 @@ function TeamsTab({ eventId, teams }: { eventId: number; teams: Team[] }) {
     setName(team.name);
     setSchoolName(team.schoolName);
     setCity(team.city || "");
+    setCountry(team.country || "");
     setCategory(team.category);
     setLanguage(team.language);
     setShowCreate(true);
   };
 
   const handleSubmit = () => {
-    const data = { name, schoolName, city: city || null, category, language, eventId };
+    const data = { name, schoolName, city: city || null, country: country || null, category, language, eventId };
     if (editingTeam) {
       updateMutation.mutate({ id: editingTeam.id, data });
     } else {
@@ -722,6 +725,10 @@ function TeamsTab({ eventId, teams }: { eventId: number; teams: Team[] }) {
                 <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Tel Aviv" data-testid="input-team-city" />
               </div>
               <div>
+                <Label>Country</Label>
+                <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Israel" data-testid="input-team-country" />
+              </div>
+              <div>
                 <Label>Category</Label>
                 <Select value={category} onValueChange={setCategory}>
                   <SelectTrigger data-testid="select-team-category">
@@ -764,7 +771,7 @@ function TeamsTab({ eventId, teams }: { eventId: number; teams: Team[] }) {
               <div>
                 <p className="font-medium">{team.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {team.schoolName}{team.city ? `, ${team.city}` : ''} | {team.category} | {team.language}
+                  {team.schoolName}{team.city ? `, ${team.city}` : ''}{team.country ? `, ${team.country}` : ''} | {team.category} | {team.language}
                 </p>
               </div>
               <div className="flex gap-2">

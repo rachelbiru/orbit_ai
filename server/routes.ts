@@ -12,10 +12,17 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Replit Auth (Google/social login) - must be setup BEFORE other routes
-  await setupReplitAuth(app);
-  registerAuthRoutes(app);
-  
+  // Replit Auth (Google/social login) - only enable when we have the
+  // required configuration (the `REPL_ID`/issuer settings are normally
+  // provided by the Replit environment).  This avoids installing a second
+  // session middleware during local development, which previously caused
+  // cookies to be marked `secure` even over HTTP and resulted in perpetual
+  // 401s after login.
+  if (process.env.REPL_ID) {
+    await setupReplitAuth(app);
+    registerAuthRoutes(app);
+  }
+
   // Local Auth (username/password for admins)
   setupAuth(app);
 
@@ -136,6 +143,16 @@ export async function registerRoutes(
       return;
     }
     const judges = await storage.getJudges();
+    res.json(judges);
+  });
+
+  app.get("/api/judges-with-events", async (req, res) => {
+    // Judges cannot view list of all judges
+    if (req.isAuthenticated() && (req.user as any)?.role === "judge") {
+      res.status(403).json({ message: "Judges cannot view judge list" });
+      return;
+    }
+    const judges = await storage.getJudgesWithEvents();
     res.json(judges);
   });
 
@@ -391,7 +408,7 @@ export async function registerRoutes(
     if (req.isAuthenticated() && (req.user as any)?.role === "judge") {
       const judgeId = (req.user as any).id;
       const slot = await storage.getSlotById(req.body.slotId);
-      if (!slot || !slot.judgeIds.includes(judgeId)) {
+      if (!slot || !slot.judgeIds || !slot.judgeIds.includes(judgeId)) {
         res.status(403).json({ message: "You are not assigned to this slot" });
         return;
       }
@@ -982,7 +999,7 @@ async function seedDatabase() {
       password: "password",
       role: "judge",
       name: "Judge Dredd",
-      languages: ["English", "Spanish"],
+      languages: ["English"],
     });
 
     const judge2 = await storage.getUserByUsername("judge2") || await storage.createUser({

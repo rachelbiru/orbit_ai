@@ -1,0 +1,13 @@
+{
+  "version": "5",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1708694400000,
+      "tag": "0001_add_country_to_teams",
+      "hash": "87f8c5b6a1e2d3f4g5h6i7j8k9l0m1n2"
+    }
+  ]
+}

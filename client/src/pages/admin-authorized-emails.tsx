@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Trash2, Mail, Shield, Users, UserCog } from "lucide-react";
+import { Plus, Trash2, Mail, Shield, Users, UserCog, Search, ArrowUpDown, Calendar } from "lucide-react";
 
 interface AuthorizedEmail {
   id: string;
@@ -21,10 +21,16 @@ interface AuthorizedEmail {
   createdBy: number | null;
 }
 
+type SortColumn = "email" | "name" | "role" | "date";
+type SortOrder = "asc" | "desc";
+
 export default function AdminAuthorizedEmails() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("email");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [formData, setFormData] = useState({
     email: "",
     role: "judge",
@@ -108,6 +114,67 @@ export default function AdminAuthorizedEmails() {
         return <Users className="w-5 h-5" />;
     }
   };
+
+  const filteredAndSortedEmails = useMemo(() => {
+    let filtered = authorizedEmails.filter(item =>
+      item.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.name?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+    );
+
+    return filtered.sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortColumn) {
+        case "email":
+          aValue = a.email;
+          bValue = b.email;
+          break;
+        case "name":
+          aValue = a.name || "";
+          bValue = b.name || "";
+          break;
+        case "role":
+          aValue = a.role;
+          bValue = b.role;
+          break;
+        case "date":
+          aValue = new Date(a.createdAt || 0).getTime();
+          bValue = new Date(b.createdAt || 0).getTime();
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aValue === "string") {
+        return sortOrder === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+      }
+      return sortOrder === "asc" ? aValue - bValue : bValue - aValue;
+    });
+  }, [authorizedEmails, searchTerm, sortColumn, sortOrder]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortOrder("asc");
+    }
+  };
+
+  const SortHeader = ({ column, label }: { column: SortColumn; label: string }) => (
+    <TableHead
+      className="cursor-pointer hover:bg-muted/50 transition-colors"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center gap-2">
+        {label}
+        <ArrowUpDown className={`h-4 w-4 transition-opacity ${
+          sortColumn === column ? "opacity-100" : "opacity-20"
+        } ${sortColumn === column && sortOrder === "desc" ? "rotate-180" : ""}`} />
+      </div>
+    </TableHead>
+  );
 
   const adminCount = authorizedEmails.filter(e => e.role === "admin").length;
   const managerCount = authorizedEmails.filter(e => e.role === "manager").length;
@@ -235,60 +302,90 @@ export default function AdminAuthorizedEmails() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Email List</CardTitle>
-          <CardDescription>
-            {isManager ? "Judges you've authorized to log in with Google" : "All authorized emails for Google login"}
-          </CardDescription>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-primary" />
+                Authorized Emails ({filteredAndSortedEmails.length})
+              </CardTitle>
+              <CardDescription>
+                {isManager ? "Judges you've authorized to log in with Google" : "All authorized emails for Google login"}
+              </CardDescription>
+            </div>
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search email or name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-background/50 border-primary/20"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="py-8 text-center text-muted-foreground">Loading...</div>
-          ) : authorizedEmails.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No authorized emails yet.</p>
+          ) : filteredAndSortedEmails.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <Mail className="w-12 h-12 mx-auto mb-4 opacity-20" />
+              <p className="text-lg">{authorizedEmails.length === 0 ? "No authorized emails yet." : "No emails match your search."}</p>
               <p className="text-sm">Add emails to allow users to log in with Google.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {authorizedEmails.map((item) => (
-                  <TableRow key={item.id} data-testid={`row-email-${item.id}`}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {getRoleIcon(item.role)}
-                        {item.email}
-                      </div>
-                    </TableCell>
-                    <TableCell>{item.name || "-"}</TableCell>
-                    <TableCell>{getRoleBadge(item.role)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          if (confirm(`Remove ${item.email} from authorized list?`)) {
-                            deleteMutation.mutate(item.id);
-                          }
-                        }}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-${item.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto rounded-lg border border-border/30 bg-card/20">
+              <Table>
+                <TableHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
+                  <TableRow className="border-primary/10">
+                    <SortHeader column="email" label="Email" />
+                    <SortHeader column="name" label="Name" />
+                    <SortHeader column="role" label="Role" />
+                    {isAdmin && <SortHeader column="date" label="Added" />}
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredAndSortedEmails.map((item, idx) => (
+                    <TableRow 
+                      key={item.id} 
+                      data-testid={`row-email-${item.id}`}
+                      className="border-border/30 hover:bg-primary/5 transition-colors animate-in fade-in"
+                      style={{ animationDelay: `${idx * 50}ms` }}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {getRoleIcon(item.role)}
+                          <span className="font-mono text-sm">{item.email}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{item.name || <span className="text-muted-foreground italic">-</span>}</TableCell>
+                      <TableCell>{getRoleBadge(item.role)}</TableCell>
+                      {isAdmin && (
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString('he-IL') : "-"}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (confirm(`Remove ${item.email} from authorized list?`)) {
+                              deleteMutation.mutate(item.id);
+                            }
+                          }}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-${item.id}`}
+                          className="hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

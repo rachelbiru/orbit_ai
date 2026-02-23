@@ -9,11 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Users, CheckCircle, Clock, AlertCircle, XCircle, Plus, Upload, Download, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Users, CheckCircle, Clock, AlertCircle, XCircle, Plus, Upload, Download, Pencil, Trash2, Loader2, Search, ArrowUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Team, ScheduleSlot, Station, Event, Score } from "@shared/schema";
 import { api } from "@shared/routes";
+
+type SortColumn = "name" | "school" | "country" | "category" | "language" | "progress";
+type SortOrder = "asc" | "desc";
 
 export default function ManagerTeamTracking() {
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
@@ -21,10 +24,14 @@ export default function ManagerTeamTracking() {
   const [showImport, setShowImport] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [csvText, setCsvText] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("name");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [teamForm, setTeamForm] = useState({
     name: "",
     schoolName: "",
     city: "",
+    country: "",
     category: "ElementarySchool",
     language: "English",
   });
@@ -151,7 +158,7 @@ export default function ManagerTeamTracking() {
   });
 
   const resetForm = () => {
-    setTeamForm({ name: "", schoolName: "", city: "", category: "ElementarySchool", language: "English" });
+    setTeamForm({ name: "", schoolName: "", city: "", country: "", category: "ElementarySchool", language: "English" });
   };
 
   const handleCreateTeam = () => {
@@ -192,6 +199,7 @@ export default function ManagerTeamTracking() {
       name: team.name,
       schoolName: team.schoolName || "",
       city: team.city || "",
+      country: team.country || "",
       category: team.category || "ElementarySchool",
       language: team.language || "English",
     });
@@ -262,6 +270,61 @@ export default function ManagerTeamTracking() {
     return labels[category] || category;
   };
 
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortOrder("asc");
+    }
+  };
+
+  const SortHeader = ({ column, label }: { column: SortColumn; label: string }) => (
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortColumn === column && (
+          <ArrowUpDown className={`h-4 w-4 transition-transform ${sortOrder === "desc" ? "rotate-180" : ""}`} />
+        )}
+      </div>
+    </TableHead>
+  );
+
+  const filteredAndSortedTeams = useMemo(() => {
+    let filtered = teamStats.filter(
+      (stat) =>
+        stat.team.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (stat.team.schoolName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (stat.team.country || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (stat.team.category || "").toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    filtered.sort((a, b) => {
+      let aVal: any = a.team[sortColumn];
+      let bVal: any = b.team[sortColumn];
+
+      if (sortColumn === "progress") {
+        aVal = a.progressPercent;
+        bVal = b.progressPercent;
+      } else if (sortColumn === "country") {
+        aVal = a.team.country || "";
+        bVal = b.team.country || "";
+      }
+
+      if (typeof aVal === "string") aVal = aVal.toLowerCase();
+      if (typeof bVal === "string") bVal = bVal.toLowerCase();
+
+      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [teamStats, searchTerm, sortColumn, sortOrder]);
+
   if (eventsLoading) {
     return <div className="p-8 text-center text-muted-foreground">Loading events...</div>;
   }
@@ -310,6 +373,16 @@ export default function ManagerTeamTracking() {
           onChange={(e) => setTeamForm({ ...teamForm, city: e.target.value })}
           placeholder="Enter city"
           data-testid="input-city"
+        />
+      </div>
+      <div>
+        <Label htmlFor="country">Country</Label>
+        <Input
+          id="country"
+          value={teamForm.country}
+          onChange={(e) => setTeamForm({ ...teamForm, country: e.target.value })}
+          placeholder="Enter country"
+          data-testid="input-country"
         />
       </div>
       <div>
@@ -481,12 +554,23 @@ export default function ManagerTeamTracking() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                All Teams ({teams.length})
-              </CardTitle>
+          <Card className="border-primary/10 bg-gradient-to-br from-card/50 to-card/30">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  All Teams ({filteredAndSortedTeams.length})
+                </CardTitle>
+                <div className="relative w-full md:w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by team, school, or category..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {teams.length === 0 ? (
@@ -494,72 +578,90 @@ export default function ManagerTeamTracking() {
                   <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No teams yet. Add teams manually or import from CSV.</p>
                 </div>
+              ) : filteredAndSortedTeams.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No teams match your search.</p>
+                </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Team Name</TableHead>
-                      <TableHead>School</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Language</TableHead>
-                      <TableHead>Progress</TableHead>
-                      {stations.map((station) => (
-                        <TableHead key={station.id} className="text-center">
-                          {station.name}
-                        </TableHead>
-                      ))}
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {teamStats.map(({ team, stationStatuses, scoredStations, totalStations, progressPercent }) => (
-                      <TableRow key={team.id} data-testid={`row-team-${team.id}`}>
-                        <TableCell className="font-medium">{team.name}</TableCell>
-                        <TableCell>{team.schoolName || "-"}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{getCategoryLabel(team.category || "")}</Badge>
-                        </TableCell>
-                        <TableCell>{team.language || "-"}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 min-w-32">
-                            <Progress value={progressPercent} className="h-2 flex-1" />
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                              {scoredStations}/{totalStations}
-                            </span>
-                          </div>
-                        </TableCell>
-                        {stationStatuses.map(({ station, status }) => (
-                          <TableCell key={station.id} className="text-center">
-                            <div className="flex justify-center">
-                              {getStatusIcon(status)}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <SortHeader column="name" label="Team Name" />
+                        <SortHeader column="school" label="School" />
+                        <SortHeader column="country" label="Country" />
+                        <SortHeader column="category" label="Category" />
+                        <SortHeader column="language" label="Language" />
+                        <SortHeader column="progress" label="Progress" />
+                        {stations.map((station) => (
+                          <TableHead key={station.id} className="text-center">
+                            {station.name}
+                          </TableHead>
+                        ))}
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedTeams.map(({ team, stationStatuses, scoredStations, totalStations, progressPercent }, idx) => (
+                        <TableRow 
+                          key={team.id} 
+                          data-testid={`row-team-${team.id}`}
+                          className="animate-in fade-in duration-300"
+                          style={{ animationDelay: `${idx * 50}ms` }}
+                        >
+                          <TableCell className="font-medium">{team.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{team.schoolName || "—"}</TableCell>
+                          <TableCell className="text-muted-foreground">{team.country || "—"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{getCategoryLabel(team.category || "")}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs">{team.language || "—"}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 min-w-40">
+                              <Progress value={progressPercent} className="h-2 flex-1" />
+                              <span className="text-xs text-muted-foreground whitespace-nowrap font-medium">
+                                {scoredStations}/{totalStations}
+                              </span>
                             </div>
                           </TableCell>
-                        ))}
-                        <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end">
-                            <Button 
-                              size="icon" 
-                              variant="ghost" 
-                              onClick={() => openEditDialog(team)}
-                              data-testid={`button-edit-team-${team.id}`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              size="icon" 
-                              variant="ghost" 
-                              disabled={deleteTeamMutation.isPending}
-                              onClick={() => deleteTeamMutation.mutate(team.id)}
-                              data-testid={`button-delete-team-${team.id}`}
-                            >
-                              {deleteTeamMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          {stationStatuses.map(({ station, status }) => (
+                            <TableCell key={station.id} className="text-center">
+                              <div className="flex justify-center">
+                                {getStatusIcon(status)}
+                              </div>
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-right">
+                            <div className="flex gap-1 justify-end">
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                onClick={() => openEditDialog(team)}
+                                data-testid={`button-edit-team-${team.id}`}
+                                className="hover:bg-primary/10 hover:text-primary transition-colors"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                disabled={deleteTeamMutation.isPending}
+                                onClick={() => deleteTeamMutation.mutate(team.id)}
+                                data-testid={`button-delete-team-${team.id}`}
+                                className="hover:bg-destructive/10 hover:text-destructive transition-colors"
+                              >
+                                {deleteTeamMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

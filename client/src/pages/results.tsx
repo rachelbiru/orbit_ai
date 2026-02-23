@@ -1,17 +1,25 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trophy, Medal, Award, Download, Filter, FileText, Printer } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Trophy, Medal, Award, Download, Filter, FileText, Printer, Search, ArrowUpDown } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import type { Event, Team, Score, Station } from "@shared/schema";
+
+type SortColumn = "rank" | "name" | "school" | "score";
+type SortOrder = "asc" | "desc";
 
 export default function ResultsPage() {
   const { user } = useAuth();
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [rankingSearchTerm, setRankingSearchTerm] = useState("");
+  const [rankingSortColumn, setRankingSortColumn] = useState<SortColumn>("rank");
+  const [rankingSortOrder, setRankingSortOrder] = useState<SortOrder>("asc");
 
   const isJudge = user?.role === "judge";
 
@@ -210,6 +218,64 @@ export default function ResultsPage() {
     return null;
   };
 
+  const handleRankingSort = (column: SortColumn) => {
+    if (rankingSortColumn === column) {
+      setRankingSortOrder(rankingSortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setRankingSortColumn(column);
+      setRankingSortOrder("asc");
+    }
+  };
+
+  const RankingSortHeader = ({ column, label }: { column: SortColumn; label: string }) => (
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50"
+      onClick={() => handleRankingSort(column)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {rankingSortColumn === column && (
+          <ArrowUpDown className={`h-4 w-4 transition-transform ${rankingSortOrder === "desc" ? "rotate-180" : ""}`} />
+        )}
+      </div>
+    </TableHead>
+  );
+
+  const filteredAndSortedRankings = useMemo(() => {
+    let filtered = rankedTeams.filter(
+      (team) =>
+        team.name.toLowerCase().includes(rankingSearchTerm.toLowerCase()) ||
+        team.schoolName.toLowerCase().includes(rankingSearchTerm.toLowerCase()) ||
+        team.category.toLowerCase().includes(rankingSearchTerm.toLowerCase())
+    );
+
+    filtered.sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      if (rankingSortColumn === "rank") {
+        // Rank order determined by array index
+        aVal = rankedTeams.indexOf(a);
+        bVal = rankedTeams.indexOf(b);
+      } else if (rankingSortColumn === "score") {
+        aVal = a.calculatedScore;
+        bVal = b.calculatedScore;
+      } else if (rankingSortColumn === "name") {
+        aVal = a.name.toLowerCase();
+        bVal = b.name.toLowerCase();
+      } else if (rankingSortColumn === "school") {
+        aVal = a.schoolName.toLowerCase();
+        bVal = b.schoolName.toLowerCase();
+      }
+
+      if (aVal < bVal) return rankingSortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return rankingSortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [rankedTeams, rankingSearchTerm, rankingSortColumn, rankingSortOrder]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -284,46 +350,76 @@ export default function ResultsPage() {
       ) : (
         <>
           {/* Overall Winners */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-yellow-500" />
-                Overall Rankings {categoryFilter !== "all" && `- ${categoryFilter}`}
-              </CardTitle>
+          <Card className="border-primary/10 bg-gradient-to-br from-card/50 to-card/30">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-500" />
+                  Overall Rankings {categoryFilter !== "all" && `- ${categoryFilter}`}
+                </CardTitle>
+                <div className="relative w-full md:w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search teams or schools..."
+                    value={rankingSearchTerm}
+                    onChange={(e) => setRankingSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {rankedTeams.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">No results yet</p>
+              ) : filteredAndSortedRankings.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No teams match your search</p>
               ) : (
-                <div className="space-y-3">
-                  {rankedTeams.map((team, index) => (
-                    <div
-                      key={team.id}
-                      className={`flex items-center justify-between p-4 rounded-lg border ${
-                        index < 3 ? "bg-card" : "bg-card/50"
-                      }`}
-                      data-testid={`result-row-${team.id}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center font-bold text-lg">
-                          {index < 3 ? getPrizeIcon(index + 1) : index + 1}
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-white">{team.name}</h3>
-                          <p className="text-sm text-muted-foreground">{team.schoolName}</p>
-                          <div className="flex gap-2 mt-1">
-                            <Badge variant="outline" className="text-xs">{team.category}</Badge>
-                            <Badge variant="outline" className="text-xs">{team.language}</Badge>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-white">{team.calculatedScore}</div>
-                        <div className="text-sm text-muted-foreground">points</div>
-                        {getPrizeBadge(index + 1)}
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <RankingSortHeader column="rank" label="Rank" />
+                        <RankingSortHeader column="name" label="Team" />
+                        <RankingSortHeader column="school" label="School" />
+                        <TableHead>Category</TableHead>
+                        <TableHead>Language</TableHead>
+                        <RankingSortHeader column="score" label="Score" />
+                        <TableHead>Prize</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedRankings.map((team, displayIndex) => {
+                        const actualIndex = rankedTeams.indexOf(team);
+                        return (
+                          <TableRow
+                            key={team.id}
+                            data-testid={`result-row-${team.id}`}
+                            className="animate-in fade-in duration-300"
+                            style={{ animationDelay: `${displayIndex * 50}ms` }}
+                          >
+                            <TableCell className="font-bold">
+                              <div className="flex items-center gap-2">
+                                {actualIndex < 3 && getPrizeIcon(actualIndex + 1)}
+                                <span className={actualIndex < 3 ? "text-lg" : ""}>{actualIndex + 1}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-semibold">{team.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{team.schoolName}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{team.category}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="text-xs">{team.language}</Badge>
+                            </TableCell>
+                            <TableCell className="font-bold text-lg">{team.calculatedScore}</TableCell>
+                            <TableCell>
+                              {getPrizeBadge(actualIndex + 1)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </CardContent>

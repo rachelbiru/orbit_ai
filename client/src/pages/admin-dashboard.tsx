@@ -34,11 +34,18 @@ export default function AdminDashboard() {
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Mission Control</h1>
           <p className="text-muted-foreground">Welcome back, Commander. System status: Optimal.</p>
         </div>
-        <Link href="/admin/events">
-          <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
-            <Calendar className="mr-2 h-4 w-4" /> Manage Events
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/judges">
+            <Button variant="outline" className="shadow-lg">
+              <User className="mr-2 h-4 w-4" /> Manage Judges
+            </Button>
+          </Link>
+          <Link href="/admin/events">
+            <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
+              <Calendar className="mr-2 h-4 w-4" /> Manage Events
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {!activeEvent ? (

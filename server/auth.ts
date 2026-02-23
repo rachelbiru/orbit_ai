@@ -15,17 +15,20 @@ const MemoryStore = createMemoryStore(session);
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || "r8q,+&1LM3)CD*zAGpx1xm{NeQHc;#",
-    resave: true,
-    saveUninitialized: true,
-    cookie: {
-      secure: false,
-      maxAge: 24 * 60 * 60 * 1000,
-      sameSite: "lax",
-    },
+    resave: false,
+    saveUninitialized: false,
+    cookie: {},
     store: new MemoryStore({
       checkPeriod: 86400000,
     }),
   };
+
+  if (app.get("env") === "production") {
+    app.set("trust proxy", 1);
+    sessionSettings.cookie = {
+      secure: true,
+    };
+  }
 
   app.use(session(sessionSettings));
   app.use(passport.initialize());
@@ -67,10 +70,7 @@ export function setupAuth(app: Express) {
           if (!user) { return res.status(401).json({ message: "Invalid credentials" }); }
           req.logIn(user, (err) => {
               if (err) { return next(err); }
-              req.session.save((saveErr) => {
-                  if (saveErr) { return next(saveErr); }
-                  return res.json(user);
-              });
+              return res.json(user);
           });
       })(req, res, next);
   });

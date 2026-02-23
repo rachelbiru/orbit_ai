@@ -32,9 +32,14 @@ export function getSession() {
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    // only send the cookie over HTTPS in production; during local development
+    // the server runs on plain HTTP so `secure: true` would prevent the
+    // browser from ever storing the session cookie (hence the 401s after
+    // logging in). matching the logic in `setupAuth` above keeps both auth
+    // systems in sync.
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       maxAge: sessionTtl,
     },
   });

@@ -45,6 +45,7 @@ export const teams = pgTable("teams", {
   name: text("name").notNull(),
   schoolName: text("school_name").notNull(),
   city: text("city"),
+  country: text("country"),
   category: text("category").notNull(),
   language: text("language").notNull(),
   totalScore: integer("total_score").default(0),

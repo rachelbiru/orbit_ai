@@ -1,0 +1,9 @@
+users,"id" serial,"username" text,"password" text,"role" text,"name" text,"phone" text,"languages" text[],"avatar_url" text,"restrictions" text
+events,"id" serial,"name" text,"date" timestamp,"location" text,"note" text,"is_active" boolean,"manager_id" integer,"judge_ids" integer[]
+stations,"id" serial,"event_id" integer,"name" text,"rubric" jsonb,"note" text
+teams,"id" serial,"event_id" integer,"name" text,"school_name" text,"city" text,"country" text,"category" text,"language" text,"total_score" integer
+schedule_slots,"id" serial,"event_id" integer,"station_id" integer,"team_id" integer,"start_time" timestamp,"end_time" timestamp,"judge_ids" integer[],"captain_judge_id" integer,"status" text
+scores,"id" serial,"slot_id" integer,"team_id" integer,"station_id" integer,"judge_id" integer,"scores" jsonb,"feedback" text,"timestamp" timestamp
+notifications,"id" serial,"judge_id" integer,"message" text,"is_read" boolean,"created_at" timestamp
+ai_feedback_sessions,"id" serial,"slot_id" integer,"judge_id" integer,"team_id" integer,"station_id" integer,"suggested_scores" jsonb,"suggested_feedback" text,"keywords" text[],"created_at" timestamp
+ai_feedback_messages,"id" serial,"session_id" integer,"role" text,"content" text
