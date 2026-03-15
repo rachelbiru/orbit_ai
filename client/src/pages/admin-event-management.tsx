@@ -16,7 +16,9 @@ import {
   GraduationCap, User, CheckCircle, XCircle, Copy, Download, Upload, FileText, Loader2
 } from "lucide-react";
 import { format } from "date-fns";
+import { formatDateIL, formatDateTimeIL } from "@/lib/format-date";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { exportToCSV } from "@/lib/export-csv";
 import { useToast } from "@/hooks/use-toast";
 import type { Event, Team, Station, ScheduleSlot, User as UserType } from "@shared/schema";
 
@@ -30,6 +32,10 @@ export default function AdminEventManagement() {
 
   const { data: judges = [] } = useQuery<UserType[]>({
     queryKey: ["/api/judges"],
+  });
+
+  const { data: managers = [] } = useQuery<UserType[]>({
+    queryKey: ["/api/managers"],
   });
 
   const selectedEvent = events.find(e => e.id === selectedEventId);
@@ -88,7 +94,7 @@ export default function AdminEventManagement() {
               ))}
             </SelectContent>
           </Select>
-          <CreateEventDialog />
+          <CreateEventDialog managers={managers} />
         </div>
       </div>
 
@@ -110,7 +116,7 @@ export default function AdminEventManagement() {
           </TabsList>
 
           <TabsContent value="overview">
-            <EventOverviewTab event={selectedEvent!} />
+            <EventOverviewTab event={selectedEvent!} managers={managers} />
           </TabsContent>
 
           <TabsContent value="judges">
@@ -142,16 +148,17 @@ export default function AdminEventManagement() {
   );
 }
 
-function CreateEventDialog() {
+function CreateEventDialog({ managers }: { managers: UserType[] }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
   const [eventDate, setEventDate] = useState("");
+  const [managerId, setManagerId] = useState<string>("");
   const queryClientHook = useQueryClient();
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; location: string; note: string; date: Date }) => {
+    mutationFn: async (data: { name: string; location: string; note: string; date: Date; managerId?: number }) => {
       return apiRequest("POST", "/api/events", data);
     },
     onSuccess: () => {
@@ -161,6 +168,7 @@ function CreateEventDialog() {
       setLocation("");
       setNote("");
       setEventDate("");
+      setManagerId("");
     },
   });
 
@@ -179,30 +187,45 @@ function CreateEventDialog() {
         <div className="space-y-4">
           <div>
             <Label>Event Name</Label>
-            <Input 
-              value={name} 
-              onChange={(e) => setName(e.target.value)} 
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               placeholder="Galactic Championship 2025"
               data-testid="input-event-name"
             />
           </div>
           <div>
             <Label>Event Date</Label>
-            <Input 
+            <Input
               type="date"
-              value={eventDate} 
-              onChange={(e) => setEventDate(e.target.value)} 
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
               data-testid="input-event-date"
             />
           </div>
           <div>
             <Label>Location</Label>
-            <Input 
-              value={location} 
-              onChange={(e) => setLocation(e.target.value)} 
+            <Input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
               placeholder="Mars Base Alpha"
               data-testid="input-event-location"
             />
+          </div>
+          <div>
+            <Label>Assign Manager</Label>
+            <Select value={managerId} onValueChange={setManagerId}>
+              <SelectTrigger data-testid="select-event-manager">
+                <SelectValue placeholder="Select a manager..." />
+              </SelectTrigger>
+              <SelectContent>
+                {managers.map((m) => (
+                  <SelectItem key={m.id} value={String(m.id)}>
+                    {m.name} ({m.username})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label>Note</Label>
@@ -215,11 +238,14 @@ function CreateEventDialog() {
               data-testid="input-event-note"
             />
           </div>
-          <Button 
-            className="w-full" 
+          <Button
+            className="w-full"
             onClick={() => {
               const date = eventDate ? new Date(eventDate + "T00:00:00") : new Date();
-              createMutation.mutate({ name, location, note, date });
+              createMutation.mutate({
+                name, location, note, date,
+                managerId: managerId ? parseInt(managerId) : undefined
+              });
             }}
             disabled={!name || !eventDate || createMutation.isPending}
             data-testid="button-submit-event"
@@ -232,18 +258,19 @@ function CreateEventDialog() {
   );
 }
 
-function EventOverviewTab({ event }: { event: Event }) {
+function EventOverviewTab({ event, managers }: { event: Event; managers: UserType[] }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(event.name);
   const [location, setLocation] = useState(event.location || "");
   const [note, setNote] = useState(event.note || "");
+  const [managerId, setManagerId] = useState<string>(event.managerId ? String(event.managerId) : "");
   const [eventDate, setEventDate] = useState(() => {
     return format(new Date(event.date), "yyyy-MM-dd");
   });
   const queryClientHook = useQueryClient();
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { name: string; location: string; note: string; date?: Date }) => {
+    mutationFn: async (data: { name: string; location: string; note: string; date?: Date; managerId?: number | null }) => {
       return apiRequest("PUT", `/api/events/${event.id}`, data);
     },
     onSuccess: () => {
@@ -329,6 +356,21 @@ function EventOverviewTab({ event }: { event: Event }) {
               <Input value={location} onChange={(e) => setLocation(e.target.value)} data-testid="input-edit-event-location" />
             </div>
             <div>
+              <Label>Assign Manager</Label>
+              <Select value={managerId} onValueChange={setManagerId}>
+                <SelectTrigger data-testid="select-edit-event-manager">
+                  <SelectValue placeholder="No manager assigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  {managers.map((m) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.name} ({m.username})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Note</Label>
               <Textarea
                 value={note}
@@ -340,7 +382,7 @@ function EventOverviewTab({ event }: { event: Event }) {
               />
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => updateMutation.mutate({ name, location, note, date: new Date(eventDate + "T00:00:00") })} disabled={updateMutation.isPending} data-testid="button-save-event">
+              <Button onClick={() => updateMutation.mutate({ name, location, note, date: new Date(eventDate + "T00:00:00"), managerId: managerId ? parseInt(managerId) : null })} disabled={updateMutation.isPending} data-testid="button-save-event">
                 {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
                 {updateMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
@@ -354,7 +396,7 @@ function EventOverviewTab({ event }: { event: Event }) {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Date</p>
-                  <p className="font-medium">{format(new Date(event.date), "MMMM d, yyyy")}</p>
+                  <p className="font-medium">{formatDateIL(event.date)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -369,6 +411,13 @@ function EventOverviewTab({ event }: { event: Event }) {
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
                   <p className="font-medium">{event.isActive ? 'Active' : 'Archived'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <User className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Manager</p>
+                  <p className="font-medium">{event.managerId ? (managers.find(m => m.id === event.managerId)?.name || "Unknown") : "Not assigned"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -397,6 +446,7 @@ function EventOverviewTab({ event }: { event: Event }) {
 
 function JudgesTab({ eventId, event, judges }: { eventId: number; event: Event; judges: UserType[] }) {
   const queryClientHook = useQueryClient();
+  const { toast } = useToast();
   const assignedJudgeIds = event.judgeIds || [];
   const [showImport, setShowImport] = useState(false);
   const [csvText, setCsvText] = useState("");
@@ -408,6 +458,19 @@ function JudgesTab({ eventId, event, judges }: { eventId: number; event: Event; 
     },
     onSuccess: () => {
       queryClientHook.invalidateQueries({ queryKey: ["/api/events"] });
+    },
+    onError: (error: any) => {
+      const msg = error?.message || "";
+      try {
+        // Error message format: "400: {json}"
+        const jsonStr = msg.substring(msg.indexOf("{"));
+        const data = JSON.parse(jsonStr);
+        if (data.details?.length) {
+          toast({ title: "Scheduling Conflict", description: data.details.join(". "), variant: "destructive" });
+          return;
+        }
+      } catch { /* not JSON, fallback below */ }
+      toast({ title: "Error", description: msg || "Failed to update judge assignments", variant: "destructive" });
     },
   });
 
@@ -513,9 +576,20 @@ function JudgesTab({ eventId, event, judges }: { eventId: number; event: Event; 
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Assign Judges to Event
+          <CardTitle className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Assign Judges to Event
+            </div>
+            <Button variant="outline" size="sm" onClick={() => {
+              const assigned = judges.filter(j => assignedJudgeIds.includes(j.id));
+              exportToCSV("event-judges.csv",
+                ["Name", "Phone", "Languages", "Status"],
+                judges.map(j => [j.name, j.phone || "", (j.languages || []).join(", "), assignedJudgeIds.includes(j.id) ? "Assigned" : "Not Assigned"])
+              );
+            }}>
+              <Download className="h-4 w-4 mr-1" /> Export CSV
+            </Button>
           </CardTitle>
           <CardDescription>
             Select which judges will be available for this event. Assigned judges can then be assigned to specific slots.
@@ -637,7 +711,10 @@ function TeamsTab({ eventId, teams }: { eventId: number; teams: Team[] }) {
   });
 
   const handleExport = () => {
-    window.open(`/api/events/${eventId}/export/teams`, "_blank");
+    exportToCSV("teams.csv",
+      ["Name", "School", "City", "Country", "Category", "Language"],
+      teams.map(t => [t.name, t.schoolName, t.city || "", t.country || "", t.category, t.language])
+    );
   };
 
   const handleImport = () => {
@@ -885,7 +962,15 @@ function StationsTab({ eventId, stations }: { eventId: number; stations: Station
   });
 
   const handleExport = () => {
-    window.open(`/api/events/${eventId}/export/stations`, "_blank");
+    exportToCSV("stations.csv",
+      ["Name", "Note", "Criteria", "Total Points"],
+      stations.map(s => {
+        const rubric = s.rubric as { criteria: { name: string; maxPoints: number }[] };
+        const criteria = rubric?.criteria?.map(c => `${c.name} (${c.maxPoints})`).join(", ") || "";
+        const totalPoints = rubric?.criteria?.reduce((sum, c) => sum + c.maxPoints, 0) || 0;
+        return [s.name, s.note || "", criteria, String(totalPoints)];
+      })
+    );
   };
 
   const handleImport = () => {
@@ -1307,6 +1392,23 @@ function ScheduleTab({
             Slots ({slots.length})
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => {
+              exportToCSV("schedule.csv",
+                ["Time", "Team", "Station", "Judges", "Captain"],
+                slots.map(s => {
+                  const team = teams.find(t => t.id === s.teamId);
+                  const station = stations.find(st => st.id === s.stationId);
+                  const slotJudges = (s.judgeIds || []).map(id => judges.find(j => j.id === id)?.name || "").filter(Boolean);
+                  const captain = s.captainJudgeId ? judges.find(j => j.id === s.captainJudgeId)?.name || "" : "";
+                  return [
+                    `${format(new Date(s.startTime), "HH:mm")} - ${format(new Date(s.endTime), "HH:mm")}`,
+                    team?.name || "", station?.name || "", slotJudges.join(", "), captain
+                  ];
+                })
+              );
+            }}>
+              <Download className="h-4 w-4 mr-1" /> Export CSV
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowImport(!showImport)} data-testid="button-import-slots">
               <Upload className="h-4 w-4 mr-1" /> Import
             </Button>

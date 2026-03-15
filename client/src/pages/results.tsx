@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trophy, Medal, Award, Download, Filter, FileText, Printer, Search, ArrowUpDown } from "lucide-react";
+import { exportToCSV } from "@/lib/export-csv";
 import { useAuth } from "@/hooks/use-auth";
 import type { Event, Team, Score, Station } from "@shared/schema";
 
@@ -158,7 +159,7 @@ export default function ResultsPage() {
         </head>
         <body>
           <h1>${selectedEvent?.name || "Competition"} - Official Results</h1>
-          <p class="info">Category: ${categoryLabel} | Generated: ${new Date().toLocaleDateString()}</p>
+          <p class="info">Category: ${categoryLabel} | Generated: ${new Date().toLocaleDateString("he-IL")}</p>
           
           <h2>Overall Rankings</h2>
           <table>
@@ -353,10 +354,31 @@ export default function ResultsPage() {
           <Card className="border-primary/10 bg-gradient-to-br from-card/50 to-card/30">
             <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-yellow-500" />
-                  Overall Rankings {categoryFilter !== "all" && `- ${categoryFilter}`}
-                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-yellow-500" />
+                    Overall Rankings {categoryFilter !== "all" && `- ${categoryFilter}`}
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      exportToCSV("results.csv", ["Rank", "Team", "School", "Category", "Language", "Score"], filteredAndSortedRankings.map((team) => {
+                        const rank = rankedTeams.indexOf(team) + 1;
+                        return [
+                          String(rank),
+                          team.name,
+                          team.schoolName || "",
+                          team.category || "",
+                          team.language || "",
+                          String(team.calculatedScore),
+                        ];
+                      }))
+                    }
+                  >
+                    <Download className="h-4 w-4 mr-1" /> Export CSV
+                  </Button>
+                </div>
                 <div className="relative w-full md:w-72">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input

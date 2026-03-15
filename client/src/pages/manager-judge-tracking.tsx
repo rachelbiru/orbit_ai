@@ -1,16 +1,18 @@
-import { useState, useMemo, useEffect } from "react";
+import { useMemo, useEffect } from "react";
+import { useManagerEvent } from "@/contexts/manager-event-context";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Clock, AlertCircle, Users, Calendar, MapPin, User as UserIcon } from "lucide-react";
+import { CheckCircle, Clock, AlertCircle, Users, Calendar, MapPin, User as UserIcon, Download } from "lucide-react";
+import { exportToCSV } from "@/lib/export-csv";
 import type { User, Team, ScheduleSlot, Station, Event, Score } from "@shared/schema";
 import { api } from "@shared/routes";
 
 export default function ManagerJudgeTracking() {
-  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const { selectedEventId, setSelectedEventId } = useManagerEvent();
 
   const { data: events = [], isLoading: eventsLoading, isError: eventsError } = useQuery<Event[]>({
     queryKey: ["/api/events"],
@@ -156,21 +158,6 @@ export default function ManagerJudgeTracking() {
         </div>
       </div>
 
-      {events.length > 1 && (
-        <div className="flex gap-2 flex-wrap">
-          {events.map((e) => (
-            <Button
-              key={e.id}
-              variant={selectedEventId === e.id ? "default" : "outline"}
-              onClick={() => setSelectedEventId(e.id)}
-              data-testid={`button-event-${e.id}`}
-            >
-              {e.name}
-            </Button>
-          ))}
-        </div>
-      )}
-
       {activeEvent && isDataLoading && (
         <div className="p-8 text-center text-muted-foreground">Loading progress data...</div>
       )}
@@ -217,6 +204,21 @@ export default function ManagerJudgeTracking() {
                 Slots Overview
               </CardTitle>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    exportToCSV("judge-tracking.csv", ["Status", "Time", "Team", "Station", "Judges"], slotDetails.map(({ slot, team, station, assignedJudges, scoringStatus }) => [
+                      scoringStatus === "complete" ? "Complete" : scoringStatus === "partial" ? "Partial" : scoringStatus === "no_judges" ? "No Judges" : slot.status === "behind" ? "Behind" : "Pending",
+                      `${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`,
+                      team?.name || "Unknown Team",
+                      station?.name || "Unknown Station",
+                      assignedJudges.map((j) => j.name).join(", ") || "None",
+                    ]))
+                  }
+                >
+                  <Download className="h-4 w-4 mr-1" /> Export CSV
+                </Button>
                 <Progress value={overallStats.progressPercent} className="h-2 w-32" />
                 <span className="text-sm text-muted-foreground whitespace-nowrap">
                   {Math.round(overallStats.progressPercent)}% complete

@@ -12,7 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScoringMatrix } from "@/components/scoring-matrix";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { formatDateIL } from "@/lib/format-date";
+import { useManagerEvent } from "@/contexts/manager-event-context";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,7 +39,7 @@ function getStationColor(stationId: number) {
 
 export default function ManagerDashboard() {
   const { user } = useAuth();
-  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const { selectedEventId, setSelectedEventId } = useManagerEvent();
 
   const { data: managerEvents, isLoading } = useQuery({
     queryKey: [`/api/events`],
@@ -49,13 +51,13 @@ export default function ManagerDashboard() {
     },
   });
 
-  const activeEvent = useMemo(() => {
+  useEffect(() => {
     if (!selectedEventId && managerEvents?.length) {
       setSelectedEventId(managerEvents[0].id);
-      return managerEvents[0];
     }
-    return managerEvents?.find((e: any) => e.id === selectedEventId);
   }, [managerEvents, selectedEventId]);
+
+  const activeEvent = managerEvents?.find((e: any) => e.id === selectedEventId);
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading your event...</div>;
 
@@ -106,7 +108,7 @@ export default function ManagerDashboard() {
             <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
               <span className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
-                {new Date(activeEvent.date).toLocaleDateString()}
+                {formatDateIL(activeEvent.date)}
               </span>
               {activeEvent.location && (
                 <span className="flex items-center gap-1">

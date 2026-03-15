@@ -10,7 +10,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Trash2, Mail, Shield, Users, UserCog, Search, ArrowUpDown, Calendar } from "lucide-react";
+import { Plus, Trash2, Mail, Shield, Users, UserCog, Search, ArrowUpDown, Calendar, Download } from "lucide-react";
+import { exportToCSV } from "@/lib/export-csv";
+import { formatDateIL } from "@/lib/format-date";
 
 interface AuthorizedEmail {
   id: string;
@@ -304,10 +306,26 @@ export default function AdminAuthorizedEmails() {
         <CardHeader>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5 text-primary" />
-                Authorized Emails ({filteredAndSortedEmails.length})
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-primary" />
+                  Authorized Emails ({filteredAndSortedEmails.length})
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    exportToCSV("authorized-emails.csv", ["Email", "Name", "Role", "Date Created"], filteredAndSortedEmails.map((item) => [
+                      item.email,
+                      item.name || "",
+                      item.role,
+                      item.createdAt ? formatDateIL(item.createdAt) : "",
+                    ]))
+                  }
+                >
+                  <Download className="h-4 w-4 mr-1" /> Export CSV
+                </Button>
+              </div>
               <CardDescription>
                 {isManager ? "Judges you've authorized to log in with Google" : "All authorized emails for Google login"}
               </CardDescription>
@@ -362,7 +380,7 @@ export default function AdminAuthorizedEmails() {
                       <TableCell>{getRoleBadge(item.role)}</TableCell>
                       {isAdmin && (
                         <TableCell className="text-sm text-muted-foreground">
-                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString('he-IL') : "-"}
+                          {item.createdAt ? formatDateIL(item.createdAt) : "-"}
                         </TableCell>
                       )}
                       <TableCell className="text-right">

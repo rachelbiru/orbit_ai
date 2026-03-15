@@ -103,8 +103,40 @@ export async function registerRoutes(
       res.status(403).json({ message: "Judges cannot update event assignments" });
       return;
     }
-    const judgeIds = req.body.judgeIds || [];
-    const event = await storage.updateEventJudges(Number(req.params.id), judgeIds);
+    const eventId = Number(req.params.id);
+    const judgeIds: number[] = req.body.judgeIds || [];
+
+    // Check for judge scheduling conflicts (same-day events)
+    const targetEvent = await storage.getEvent(eventId);
+    if (!targetEvent) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+    const allEvents = await storage.getEvents();
+    const targetDate = new Date(targetEvent.date).toDateString();
+    const overlappingEvents = allEvents.filter(
+      (e) => e.id !== eventId && new Date(e.date).toDateString() === targetDate
+    );
+
+    const conflicts: { judgeId: number; eventName: string }[] = [];
+    for (const judgeId of judgeIds) {
+      for (const otherEvent of overlappingEvents) {
+        if (otherEvent.judgeIds?.includes(judgeId)) {
+          conflicts.push({ judgeId, eventName: otherEvent.name });
+        }
+      }
+    }
+    if (conflicts.length > 0) {
+      const judges = await storage.getJudges();
+      const details = conflicts.map((c) => {
+        const judge = judges.find((j) => j.id === c.judgeId);
+        return `${judge?.name || `Judge #${c.judgeId}`} is already assigned to "${c.eventName}" on the same day`;
+      });
+      res.status(400).json({ message: "Judge scheduling conflict", conflicts, details });
+      return;
+    }
+
+    const event = await storage.updateEventJudges(eventId, judgeIds);
     if (!event) {
       res.status(404).json({ message: "Event not found" });
       return;
@@ -134,6 +166,16 @@ export async function registerRoutes(
       return;
     }
     res.status(201).json(newEvent);
+  });
+
+  app.get("/api/managers", async (req, res) => {
+    // Only admins can view manager list
+    if (req.isAuthenticated() && (req.user as any)?.role !== "admin") {
+      res.status(403).json({ message: "Only admins can view manager list" });
+      return;
+    }
+    const managers = await storage.getManagers();
+    res.json(managers);
   });
 
   app.get("/api/judges", async (req, res) => {

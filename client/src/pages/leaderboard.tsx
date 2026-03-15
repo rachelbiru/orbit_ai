@@ -7,8 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Medal, Star, Lock, Search, ArrowUpDown } from "lucide-react";
+import { Trophy, Medal, Star, Lock, Search, ArrowUpDown, Download } from "lucide-react";
+import { exportToCSV } from "@/lib/export-csv";
 import { Redirect } from "wouter";
 
 type SortColumn = "name" | "school" | "city" | "country" | "language" | "score";
@@ -167,10 +169,32 @@ function RankingList({ teams }: { teams: any[] }) {
     <Card className="border-primary/10 bg-gradient-to-br from-card/50 to-card/30">
       <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/0">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-yellow-500" />
-            Teams ({filteredAndSortedTeams.length})
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Teams ({filteredAndSortedTeams.length})
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                exportToCSV("leaderboard.csv", ["Rank", "Team", "School", "City", "Country", "Language", "Score"], filteredAndSortedTeams.map((team) => {
+                  const rank = teams.indexOf(team) + 1;
+                  return [
+                    String(rank),
+                    team.name,
+                    team.schoolName || "",
+                    team.city || "",
+                    team.country || "",
+                    team.language || "",
+                    String(team.totalPoints),
+                  ];
+                }))
+              }
+            >
+              <Download className="h-4 w-4 mr-1" /> Export CSV
+            </Button>
+          </div>
           <div className="relative w-full md:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
