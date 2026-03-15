@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -229,22 +230,31 @@ export default function ManagerJudgeTracking() {
                   <p>No slots scheduled for this event yet.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {slotDetails.map(({ slot, team, station, assignedJudges, judgesScored, judgesNotScored, scoringStatus }) => (
-                    <div
-                      key={slot.id}
-                      className={`rounded-md border p-4 ${
-                        slot.status === "behind"
-                          ? "border-red-300 dark:border-red-800 bg-red-500/5"
-                          : scoringStatus === "complete"
-                          ? "border-green-300 dark:border-green-800 bg-green-500/5"
-                          : "border-border"
-                      }`}
-                      data-testid={`slot-card-${slot.id}`}
-                    >
-                      <div className="flex flex-col md:flex-row md:items-center gap-3">
-                        <div className="flex items-center gap-3 md:min-w-44 shrink-0">
-                          <div className={`h-9 w-9 rounded-md flex items-center justify-center shrink-0 ${
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">Status</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Team</TableHead>
+                      <TableHead>Station</TableHead>
+                      <TableHead>Judges</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {slotDetails.map(({ slot, team, station, assignedJudges, judgesScored, judgesNotScored, scoringStatus }) => (
+                      <TableRow
+                        key={slot.id}
+                        className={
+                          slot.status === "behind"
+                            ? "bg-red-500/5"
+                            : scoringStatus === "complete"
+                            ? "bg-green-500/5"
+                            : ""
+                        }
+                        data-testid={`slot-card-${slot.id}`}
+                      >
+                        <TableCell>
+                          <div className={`h-8 w-8 rounded-md flex items-center justify-center ${
                             scoringStatus === "complete"
                               ? "bg-green-500/15 text-green-600 dark:text-green-400"
                               : scoringStatus === "partial"
@@ -261,41 +271,30 @@ export default function ManagerJudgeTracking() {
                               <Clock className="h-4 w-4" />
                             )}
                           </div>
-                          <div>
-                            <div className="font-medium text-sm" data-testid={`slot-time-${slot.id}`}>
-                              {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                            </div>
-                            {slot.status === "behind" && (
-                              <Badge variant="destructive" className="text-xs mt-0.5">Behind</Badge>
-                            )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium text-sm" data-testid={`slot-time-${slot.id}`}>
+                            {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
                           </div>
-                        </div>
-
-                        <div className="h-px md:h-8 md:w-px bg-border shrink-0" />
-
-                        <div className="flex items-center gap-2 md:min-w-40 shrink-0">
-                          <Users className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="text-sm font-medium truncate" data-testid={`slot-team-${slot.id}`}>
+                          {slot.status === "behind" && (
+                            <Badge variant="destructive" className="text-xs mt-0.5">Behind</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm font-medium" data-testid={`slot-team-${slot.id}`}>
                             {team?.name || "Unknown Team"}
                           </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 md:min-w-36 shrink-0">
-                          <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="text-sm text-muted-foreground truncate" data-testid={`slot-station-${slot.id}`}>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground" data-testid={`slot-station-${slot.id}`}>
                             {station?.name || "Unknown Station"}
                           </span>
-                        </div>
-
-                        <div className="h-px md:h-8 md:w-px bg-border shrink-0" />
-
-                        <div className="flex-1 min-w-0">
+                        </TableCell>
+                        <TableCell>
                           {assignedJudges.length === 0 ? (
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-400 dark:border-amber-600 text-xs">
-                                No judges assigned
-                              </Badge>
-                            </div>
+                            <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-400 dark:border-amber-600 text-xs">
+                              No judges assigned
+                            </Badge>
                           ) : (
                             <div className="flex flex-wrap gap-1.5">
                               {judgesScored.map((judge) => (
@@ -321,11 +320,11 @@ export default function ManagerJudgeTracking() {
                               ))}
                             </div>
                           )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>

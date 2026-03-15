@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { 
@@ -521,47 +522,61 @@ function JudgesTab({ eventId, event, judges }: { eventId: number; event: Event; 
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3">
-            {judges.map(judge => {
-              const isAssigned = assignedJudgeIds.includes(judge.id);
-              return (
-                <div 
-                  key={judge.id}
-                  className={`flex items-center justify-between p-3 rounded-md border cursor-pointer transition-colors ${
-                    isAssigned ? 'bg-primary/10 border-primary/30' : 'hover-elevate'
-                  }`}
-                  onClick={() => toggleJudge(judge.id)}
-                  data-testid={`judge-row-${judge.id}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      isAssigned ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                    }`}>
-                      <User className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{judge.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {judge.languages?.join(", ") || "No languages specified"}
-                      </p>
-                    </div>
-                  </div>
-                  {isAssigned ? (
-                    <Badge variant="default">
-                      <CheckCircle className="h-3 w-3 mr-1" /> Assigned
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">
-                      <XCircle className="h-3 w-3 mr-1" /> Not Assigned
-                    </Badge>
-                  )}
-                </div>
-              );
-            })}
-            {judges.length === 0 && (
-              <p className="text-muted-foreground text-center py-4">No judges available in the system.</p>
-            )}
-          </div>
+          {judges.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">No judges available in the system.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Judge</TableHead>
+                  <TableHead>Languages</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {judges.map(judge => {
+                  const isAssigned = assignedJudgeIds.includes(judge.id);
+                  return (
+                    <TableRow
+                      key={judge.id}
+                      className={`cursor-pointer transition-colors ${isAssigned ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
+                      onClick={() => toggleJudge(judge.id)}
+                      data-testid={`judge-row-${judge.id}`}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                            isAssigned ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                          }`}>
+                            <User className="h-4 w-4" />
+                          </div>
+                          <span className="font-medium">{judge.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {judge.languages?.join(", ") || "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {judge.phone || "—"}
+                      </TableCell>
+                      <TableCell>
+                        {isAssigned ? (
+                          <Badge variant="default">
+                            <CheckCircle className="h-3 w-3 mr-1" /> Assigned
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">
+                            <XCircle className="h-3 w-3 mr-1" /> Not Assigned
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -765,37 +780,53 @@ function TeamsTab({ eventId, teams }: { eventId: number; teams: Team[] }) {
           </div>
         )}
 
-        <div className="space-y-2">
-          {teams.map(team => (
-            <div key={team.id} className="flex items-center justify-between p-3 border rounded-md" data-testid={`team-row-${team.id}`}>
-              <div>
-                <p className="font-medium">{team.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {team.schoolName}{team.city ? `, ${team.city}` : ''}{team.country ? `, ${team.country}` : ''} | {team.category} | {team.language}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="icon" onClick={() => startEdit(team)} data-testid={`button-edit-team-${team.id}`}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  disabled={deleteMutation.isPending}
-                  onClick={() => {
-                    if (confirm("Delete this team?")) deleteMutation.mutate(team.id);
-                  }}
-                  data-testid={`button-delete-team-${team.id}`}
-                >
-                  {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          ))}
-          {teams.length === 0 && !showCreate && (
-            <p className="text-muted-foreground text-center py-8">No teams yet. Add your first team above.</p>
-          )}
-        </div>
+        {teams.length === 0 && !showCreate ? (
+          <p className="text-muted-foreground text-center py-8">No teams yet. Add your first team above.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>School</TableHead>
+                <TableHead>City</TableHead>
+                <TableHead>Country</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Language</TableHead>
+                <TableHead className="w-24"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {teams.map(team => (
+                <TableRow key={team.id} data-testid={`team-row-${team.id}`}>
+                  <TableCell className="font-medium">{team.name}</TableCell>
+                  <TableCell>{team.schoolName}</TableCell>
+                  <TableCell>{team.city || "—"}</TableCell>
+                  <TableCell>{team.country || "—"}</TableCell>
+                  <TableCell><Badge variant="outline" className="text-xs">{team.category}</Badge></TableCell>
+                  <TableCell><Badge variant="secondary" className="text-xs">{team.language}</Badge></TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => startEdit(team)} data-testid={`button-edit-team-${team.id}`}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={deleteMutation.isPending}
+                        onClick={() => {
+                          if (confirm("Delete this team?")) deleteMutation.mutate(team.id);
+                        }}
+                        data-testid={`button-delete-team-${team.id}`}
+                      >
+                        {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   );
@@ -1014,54 +1045,67 @@ function StationsTab({ eventId, stations }: { eventId: number; stations: Station
           </div>
         )}
 
-        <div className="space-y-2">
-          {stations.map(station => {
-            const rubric = station.rubric as { criteria: { name: string; maxPoints: number; note?: string }[] };
-            const totalPoints = rubric?.criteria?.reduce((sum, c) => sum + c.maxPoints, 0) || 0;
-            return (
-              <div key={station.id} className="flex items-center justify-between p-3 border rounded-md" data-testid={`station-row-${station.id}`}>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{station.name}</p>
-                  {station.note && (
-                    <p className="text-sm text-muted-foreground mt-0.5" data-testid={`station-note-${station.id}`}>{station.note}</p>
-                  )}
-                  <div className="space-y-1 mt-1">
-                    {rubric?.criteria?.map((c, i) => (
-                      <div key={i} className="flex items-center gap-1 flex-wrap">
-                        <Badge variant="secondary" className="text-xs">
-                          {c.name}: {c.maxPoints}pts
-                        </Badge>
-                        {c.note && (
-                          <span className="text-xs text-muted-foreground">- {c.note}</span>
-                        )}
+        {stations.length === 0 && !showCreate ? (
+          <p className="text-muted-foreground text-center py-8">No stations yet. Add your first station above.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Note</TableHead>
+                <TableHead>Rubric</TableHead>
+                <TableHead>Total Points</TableHead>
+                <TableHead className="w-24"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stations.map(station => {
+                const rubric = station.rubric as { criteria: { name: string; maxPoints: number; note?: string }[] };
+                const totalPoints = rubric?.criteria?.reduce((sum, c) => sum + c.maxPoints, 0) || 0;
+                return (
+                  <TableRow key={station.id} data-testid={`station-row-${station.id}`}>
+                    <TableCell className="font-medium">{station.name}</TableCell>
+                    <TableCell>
+                      {station.note ? (
+                        <span className="text-sm text-muted-foreground" data-testid={`station-note-${station.id}`}>{station.note}</span>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {rubric?.criteria?.map((c, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs">
+                            {c.name}: {c.maxPoints}pts
+                          </Badge>
+                        ))}
                       </div>
-                    ))}
-                    <Badge variant="outline" className="text-xs">Total: {totalPoints}pts</Badge>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => startEdit(station)} data-testid={`button-edit-station-${station.id}`}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    disabled={deleteMutation.isPending}
-                    onClick={() => {
-                      if (confirm("Delete this station?")) deleteMutation.mutate(station.id);
-                    }}
-                    data-testid={`button-delete-station-${station.id}`}
-                  >
-                    {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-          {stations.length === 0 && !showCreate && (
-            <p className="text-muted-foreground text-center py-8">No stations yet. Add your first station above.</p>
-          )}
-        </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">{totalPoints}pts</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => startEdit(station)} data-testid={`button-edit-station-${station.id}`}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => {
+                            if (confirm("Delete this station?")) deleteMutation.mutate(station.id);
+                          }}
+                          data-testid={`button-delete-station-${station.id}`}
+                        >
+                          {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   );
@@ -1394,67 +1438,80 @@ function ScheduleTab({
         )}
 
         <ScrollArea className="h-[400px]">
-          <div className="space-y-2">
-            {slots.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(slot => {
-              const team = teams.find(t => t.id === slot.teamId);
-              const station = stations.find(s => s.id === slot.stationId);
-              const slotJudges = judges.filter(j => slot.judgeIds?.includes(j.id));
-              
-              return (
-                <div key={slot.id} className="flex items-center justify-between p-3 border rounded-md" data-testid={`slot-row-${slot.id}`}>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{format(new Date(slot.startTime), "HH:mm")} - {format(new Date(slot.endTime), "HH:mm")}</Badge>
-                      <span className="font-medium">{team?.name || "Unknown Team"}</span>
-                      <span className="text-muted-foreground">at</span>
-                      <span className="font-medium">{station?.name || "Unknown Station"}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      {slotJudges.map(j => (
-                        <Badge key={j.id} variant="secondary" className="text-xs">
-                          {j.name} {j.id === slot.captainJudgeId && "(Captain)"}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => startEdit(slot)}
-                      data-testid={`button-edit-slot-${slot.id}`}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => duplicateSlot(slot)}
-                      data-testid={`button-duplicate-slot-${slot.id}`}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      disabled={deleteMutation.isPending}
-                      onClick={() => {
-                        if (confirm("Delete this slot?")) deleteMutation.mutate(slot.id);
-                      }}
-                      data-testid={`button-delete-slot-${slot.id}`}
-                    >
-                      {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-            {slots.length === 0 && !showCreate && (
-              <p className="text-muted-foreground text-center py-8">
-                No slots yet. Create teams and stations first, then add slots.
-              </p>
-            )}
-          </div>
+          {slots.length === 0 && !showCreate ? (
+            <p className="text-muted-foreground text-center py-8">
+              No slots yet. Create teams and stations first, then add slots.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Team</TableHead>
+                  <TableHead>Station</TableHead>
+                  <TableHead>Judges</TableHead>
+                  <TableHead className="w-28"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {slots.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(slot => {
+                  const team = teams.find(t => t.id === slot.teamId);
+                  const station = stations.find(s => s.id === slot.stationId);
+                  const slotJudges = judges.filter(j => slot.judgeIds?.includes(j.id));
+
+                  return (
+                    <TableRow key={slot.id} data-testid={`slot-row-${slot.id}`}>
+                      <TableCell>
+                        <Badge variant="outline">{format(new Date(slot.startTime), "HH:mm")} - {format(new Date(slot.endTime), "HH:mm")}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{team?.name || "Unknown Team"}</TableCell>
+                      <TableCell>{station?.name || "Unknown Station"}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {slotJudges.map(j => (
+                            <Badge key={j.id} variant="secondary" className="text-xs">
+                              {j.name} {j.id === slot.captainJudgeId && "(Captain)"}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => startEdit(slot)}
+                            data-testid={`button-edit-slot-${slot.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => duplicateSlot(slot)}
+                            data-testid={`button-duplicate-slot-${slot.id}`}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={deleteMutation.isPending}
+                            onClick={() => {
+                              if (confirm("Delete this slot?")) deleteMutation.mutate(slot.id);
+                            }}
+                            data-testid={`button-delete-slot-${slot.id}`}
+                          >
+                            {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </ScrollArea>
       </CardContent>
     </Card>
